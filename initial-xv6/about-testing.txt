@@ -1,0 +1,7 @@
+Steps to pass all tests:
+
+cd src
+make -f Makefile.test qemu-nox
+./test-getreadcounts.sh -s
+
+-s is necessary. Tests will fail without it.
