@@ -58,12 +58,21 @@ int main(int argc, char *argv[]) {
     
     wish_argv[i] = NULL;
     
-    if (strcmp(line, "exit") == 0) {
+    if (strcmp(wish_argv[0], "exit") == 0) {
       exit(0);
     }
 
-    if (strcmp(line, "cd") == 0) {
+    if (strcmp(wish_argv[0], "cd") == 0) {
+      if (i != 2) {
+	write(STDERR_FILENO, error_message, strlen(error_message));
+	continue;
+      }
 
+      if (chdir(wish_argv[1])) {
+	write(STDERR_FILENO, error_message, strlen(error_message));
+      }
+
+      continue;
     }
 
     pid = fork();
@@ -88,7 +97,6 @@ int main(int argc, char *argv[]) {
       }
 
       wish_argv[0] = strdup(path);
-      // wish_argv[1] = NULL; // tmp
       execv(wish_argv[0], wish_argv);
       write(STDERR_FILENO, error_message, strlen(error_message));
       exit(1);
