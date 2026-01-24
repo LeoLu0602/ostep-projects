@@ -25,7 +25,8 @@ int main(int argc, char *argv[]) {
   char *wish_argv[MAX_ARGS + 1];
   ssize_t n;
   char path[PATH_MAX];
-
+  char error_message[30] = "An error has occurred\n";
+  
   while (1) {
     printf("wish> ");
 
@@ -52,7 +53,19 @@ int main(int argc, char *argv[]) {
       exit(1);
     } else if (pid == 0) {
       // child
+      // search /bin
       snprintf(path, strlen("/bin/") + strlen(line) + 1, "/bin/%s", line);
+      
+      if (access(path, X_OK) != 0) {
+	// search /usr/bin
+	snprintf(path, strlen("/usr/bin/") + strlen(line) + 1, "/usr/bin/%s", line);
+
+	if (access(path, X_OK) != 0) {
+	  write(STDERR_FILENO, error_message, strlen(error_message));
+	  exit(1);
+	}
+      }
+
       wish_argv[0] = strdup(path);
       wish_argv[1] = NULL; // tmp
       execv(wish_argv[0], wish_argv);
