@@ -43,8 +43,27 @@ int main(int argc, char *argv[]) {
     
     line[n - 1] = '\0'; // get rid of \n
     
+    // build wish_argv
+    char *p = line;
+    char *tok;
+    int i = 0;
+
+    while ((tok = strsep(&p, " "))) {
+      if (*tok == '\0') {
+	continue;
+      }
+
+      wish_argv[i++] = strdup(tok);
+    }
+    
+    wish_argv[i] = NULL;
+    
     if (strcmp(line, "exit") == 0) {
       exit(0);
+    }
+
+    if (strcmp(line, "cd") == 0) {
+
     }
 
     pid = fork();
@@ -69,7 +88,7 @@ int main(int argc, char *argv[]) {
       }
 
       wish_argv[0] = strdup(path);
-      wish_argv[1] = NULL; // tmp
+      // wish_argv[1] = NULL; // tmp
       execv(wish_argv[0], wish_argv);
       write(STDERR_FILENO, error_message, strlen(error_message));
       exit(1);
