@@ -8,8 +8,10 @@
 #define PATH_MAX 100
 
 int main(int argc, char *argv[]) {
+  char error_message[30] = "An error has occurred\n";
+  
   if (argc > 2) {
-    printf("wish: too many args\n");
+    write(STDERR_FILENO, error_message, strlen(error_message));
     exit(1);
   }
   
@@ -25,7 +27,6 @@ int main(int argc, char *argv[]) {
   char *wish_argv[MAX_ARGS + 1];
   ssize_t n;
   char path[PATH_MAX];
-  char error_message[30] = "An error has occurred\n";
   
   while (1) {
     printf("wish> ");
@@ -36,6 +37,7 @@ int main(int argc, char *argv[]) {
 	exit(0);
       }
 
+      write(STDERR_FILENO, error_message, strlen(error_message));
       exit(1);
     }
     
@@ -49,7 +51,7 @@ int main(int argc, char *argv[]) {
 
     if (pid < 0) {
       // error
-      printf("wish: fork failed\n");
+      write(STDERR_FILENO, error_message, strlen(error_message));
       exit(1);
     } else if (pid == 0) {
       // child
@@ -69,7 +71,7 @@ int main(int argc, char *argv[]) {
       wish_argv[0] = strdup(path);
       wish_argv[1] = NULL; // tmp
       execv(wish_argv[0], wish_argv);
-      printf("wish: execv failed\n");
+      write(STDERR_FILENO, error_message, strlen(error_message));
       exit(1);
     } else {
       // parent
@@ -81,3 +83,4 @@ int main(int argc, char *argv[]) {
 
   return 0;
 }
+
