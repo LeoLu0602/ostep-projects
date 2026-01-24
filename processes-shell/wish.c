@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <string.h>
 
 #define MAX_ARGS 10
 
@@ -21,17 +22,24 @@ int main(int argc, char *argv[]) {
   char *line = NULL;
   size_t len = 0;
   char *wish_argv[MAX_ARGS + 1];
+  ssize_t n;
 
   while (1) {
     printf("wish> ");
 
-    if (getline(&line, &len, stdin) == -1) {
+    if ((n = getline(&line, &len, stdin)) == -1) {
       if (feof(stdin)) {
 	// EOF
 	exit(0);
       }
 
       exit(1);
+    }
+    
+    line[n - 1] = '\0'; // get rid of \n
+    
+    if (strcmp(line, "exit") == 0) {
+      exit(0);
     }
 
     pid = fork();
@@ -42,6 +50,7 @@ int main(int argc, char *argv[]) {
       exit(1);
     } else if (pid == 0) {
       // child
+      wish_argv[0] = strdup(line);
       wish_argv[1] = NULL; // tmp
       execv(wish_argv[0], wish_argv);
       printf("wish: execv failed\n");
