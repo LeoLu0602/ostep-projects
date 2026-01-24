@@ -5,6 +5,7 @@
 #include <string.h>
 
 #define MAX_ARGS 10
+#define PATH_MAX 100
 
 int main(int argc, char *argv[]) {
   if (argc > 2) {
@@ -23,6 +24,7 @@ int main(int argc, char *argv[]) {
   size_t len = 0;
   char *wish_argv[MAX_ARGS + 1];
   ssize_t n;
+  char path[PATH_MAX];
 
   while (1) {
     printf("wish> ");
@@ -50,7 +52,8 @@ int main(int argc, char *argv[]) {
       exit(1);
     } else if (pid == 0) {
       // child
-      wish_argv[0] = strdup(line);
+      snprintf(path, strlen("/bin/") + strlen(line) + 1, "/bin/%s", line);
+      wish_argv[0] = strdup(path);
       wish_argv[1] = NULL; // tmp
       execv(wish_argv[0], wish_argv);
       printf("wish: execv failed\n");
