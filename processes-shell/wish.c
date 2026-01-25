@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
       }
 
       write(STDERR_FILENO, error_message, strlen(error_message));
-      exit(1);
+      continue;
     }
     
     line[n - 1] = '\0'; // get rid of \n
@@ -75,12 +75,16 @@ int main(int argc, char *argv[]) {
       continue;
     }
 
+    if (strcmp(wish_argv[0], "path")) {
+
+    }
+
     pid = fork();
 
     if (pid < 0) {
       // error
       write(STDERR_FILENO, error_message, strlen(error_message));
-      exit(1);
+      continue;
     } else if (pid == 0) {
       // child
       // search /bin
@@ -92,14 +96,14 @@ int main(int argc, char *argv[]) {
 
 	if (access(path, X_OK) != 0) {
 	  write(STDERR_FILENO, error_message, strlen(error_message));
-	  exit(1);
+	  continue;
 	}
       }
 
       wish_argv[0] = strdup(path);
       execv(wish_argv[0], wish_argv);
       write(STDERR_FILENO, error_message, strlen(error_message));
-      exit(1);
+      continue;
     } else {
       // parent
       wait(NULL);
