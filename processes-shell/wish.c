@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <string.h>
+#include <fcntl.h>
 
 #define MAX_ARGS 10
 #define PATH_MAX 100
@@ -27,7 +28,12 @@ int main(int argc, char *argv[]) {
   char *wish_argv[MAX_ARGS + 1];
   ssize_t n;
   char path[PATH_MAX];
-  
+  char *p;
+  char *tok;
+  int i = 0;
+  int redir_pos = -1; // index of the last ">" in wish_argv, -1 if not present
+  int redir_cnt = 0; 
+
   while (1) {
     printf("wish> ");
 
@@ -44,19 +50,31 @@ int main(int argc, char *argv[]) {
     line[n - 1] = '\0'; // get rid of \n
     
     // build wish_argv
-    char *p = line;
-    char *tok;
-    int i = 0;
+    p = line;
+    i = 0;
+    redir_pos = -1;
+    redir_cnt = 0;
 
     while ((tok = strsep(&p, " "))) {
       if (*tok == '\0') {
 	continue;
+      }
+      
+      if (strcmp(tok, ">") == 0) {
+	redir_pos = i;
+	++redir_cnt;
       }
 
       wish_argv[i++] = strdup(tok);
     }
     
     wish_argv[i] = NULL;
+
+    // more thatn one > or more than one files followed >
+    if (redir_cnt > 1 || (redir_cnt == 1 && redir_pos != i - 2)) {
+	write(STDERR_FILENO, error_message, strlen(error_message));
+	continue;
+    }
     
     if (strcmp(wish_argv[0], "exit") == 0) {
       exit(0);
@@ -101,6 +119,16 @@ int main(int argc, char *argv[]) {
       }
 
       wish_argv[0] = strdup(path);
+      
+      // handle redirection
+      if (redir_cnt == 1) {
+	int fd = open(wish_argv[i - 1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+
+	dup2(fd, STDOUT_FILENO);
+	close(fd);
+	wish_argv[redir_pos] = NULL;
+      }
+
       execv(wish_argv[0], wish_argv);
       write(STDERR_FILENO, error_message, strlen(error_message));
       continue;
