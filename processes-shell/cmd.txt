@@ -1,0 +1,6 @@
+pwd
+echo hello world > a.txt
+ls
+cat a.txt
+rm a.txt
+ls

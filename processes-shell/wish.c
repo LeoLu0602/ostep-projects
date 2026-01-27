@@ -10,18 +10,6 @@
 
 int main(int argc, char *argv[]) {
   char error_message[30] = "An error has occurred\n";
-  
-  if (argc > 2) {
-    write(STDERR_FILENO, error_message, strlen(error_message));
-    exit(1);
-  }
-  
-  // batch mode
-  if (argc == 2) {
-    exit(0);
-  }
-  
-  // interactive mode
   int pid;
   char *line = NULL;
   size_t len = 0;
@@ -33,20 +21,40 @@ int main(int argc, char *argv[]) {
   int i = 0;
   int redir_pos = -1; // index of the last ">" in wish_argv, -1 if not present
   int redir_cnt = 0; 
+  FILE *fp = stdin;
 
+  if (argc > 2) {
+    write(STDERR_FILENO, error_message, strlen(error_message));
+    exit(1);
+  }
+  
+  // batch mode
+  if (argc == 2) {
+    if (!(fp = fopen(argv[1] , "r"))) {
+      write(STDERR_FILENO, error_message, strlen(error_message));
+      exit(1);
+    } 
+  }
+  
   while (1) {
-    printf("wish> ");
-
-    if ((n = getline(&line, &len, stdin)) == -1) {
-      if (feof(stdin)) {
+    if (argc == 1) {
+      printf("wish> ");
+    }
+    
+    if ((n = getline(&line, &len, fp)) == -1) {
+      if (feof(fp)) {
 	// EOF
+	if (argc == 1) {
+	  printf("\n");
+	}
+
 	exit(0);
       }
 
       write(STDERR_FILENO, error_message, strlen(error_message));
       continue;
     }
-    
+
     line[n - 1] = '\0'; // get rid of \n
     
     // build wish_argv
@@ -136,6 +144,10 @@ int main(int argc, char *argv[]) {
       // parent
       wait(NULL);
     }
+  }
+
+  if (argc == 2) {
+    fclose(fp);
   }
 
   free(line);
