@@ -85,6 +85,11 @@ int main(int argc, char *argv[]) {
     }
     
     if (strcmp(wish_argv[0], "exit") == 0) {
+      if (i != 1) {
+	write(STDERR_FILENO, error_message, strlen(error_message));
+	continue;
+      }
+
       exit(0);
     }
 
@@ -126,8 +131,6 @@ int main(int argc, char *argv[]) {
 	}
       }
 
-      wish_argv[0] = strdup(path);
-      
       // handle redirection
       if (redir_cnt == 1) {
 	int fd = open(wish_argv[i - 1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -137,7 +140,7 @@ int main(int argc, char *argv[]) {
 	wish_argv[redir_pos] = NULL;
       }
 
-      execv(wish_argv[0], wish_argv);
+      execv(path, wish_argv);
       write(STDERR_FILENO, error_message, strlen(error_message));
       continue;
     } else {
