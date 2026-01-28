@@ -7,6 +7,8 @@
 
 #define MAX_ARGS 10
 #define PATH_MAX 100
+#define MAX_CMD_CNT 100
+#define MAX_CMD_LEN 200
 
 int main(int argc, char *argv[]) {
   char error_message[30] = "An error has occurred\n";
@@ -18,134 +20,157 @@ int main(int argc, char *argv[]) {
   char path[PATH_MAX];
   char *p;
   char *tok;
-  int i = 0;
+  int wish_argc = 0;
   int redir_pos = -1; // index of the last ">" in wish_argv, -1 if not present
-  int redir_cnt = 0; 
+  int redir_cnt = 0;
   FILE *fp = stdin;
+  char cmds[MAX_CMD_CNT][MAX_CMD_LEN + 1];
+  int cmd_cnt = 0;
+  pid_t pids[MAX_CMD_CNT];
+  int pid_cnt = 0;
 
   if (argc > 2) {
     write(STDERR_FILENO, error_message, strlen(error_message));
     exit(1);
   }
-  
+
   // batch mode
   if (argc == 2) {
-    if (!(fp = fopen(argv[1] , "r"))) {
+    fp = fopen(argv[1], "r");
+
+    if (!fp) {
       write(STDERR_FILENO, error_message, strlen(error_message));
       exit(1);
-    } 
+    }
   }
-  
+
   while (1) {
     if (argc == 1) {
       printf("wish> ");
     }
-    
-    if ((n = getline(&line, &len, fp)) == -1) {
+
+    n = getline(&line, &len, fp);
+
+    if (n == -1) {
+      // EOF
       if (feof(fp)) {
-	// EOF
-	if (argc == 1) {
-	  printf("\n");
-	}
+        if (argc == 1) {
+          printf("\n");
+        }
 
-	exit(0);
+        exit(0);
       }
 
       write(STDERR_FILENO, error_message, strlen(error_message));
       continue;
     }
 
+    // build cmds
     line[n - 1] = '\0'; // get rid of \n
-    
-    // build wish_argv
+    cmd_cnt = 0;
     p = line;
-    i = 0;
-    redir_pos = -1;
-    redir_cnt = 0;
 
-    while ((tok = strsep(&p, " "))) {
+    while ((tok = strsep(&p, "&"))) {
       if (*tok == '\0') {
-	continue;
-      }
-      
-      if (strcmp(tok, ">") == 0) {
-	redir_pos = i;
-	++redir_cnt;
+        continue;
       }
 
-      wish_argv[i++] = strdup(tok);
-    }
-    
-    wish_argv[i] = NULL;
-
-    // more thatn one > or more than one files followed >
-    if (redir_cnt > 1 || (redir_cnt == 1 && redir_pos != i - 2)) {
-	write(STDERR_FILENO, error_message, strlen(error_message));
-	continue;
-    }
-    
-    if (strcmp(wish_argv[0], "exit") == 0) {
-      if (i != 1) {
-	write(STDERR_FILENO, error_message, strlen(error_message));
-	continue;
-      }
-
-      exit(0);
+      snprintf(cmds[cmd_cnt++], MAX_CMD_LEN, "%s", tok);
     }
 
-    if (strcmp(wish_argv[0], "cd") == 0) {
-      if (i != 2) {
-	write(STDERR_FILENO, error_message, strlen(error_message));
-	continue;
+		pid_cnt = 0;
+
+    for (int i = 0; i < cmd_cnt; ++i) {
+      // build wish_argv
+      p = cmds[i];
+      wish_argc = 0;
+      redir_pos = -1;
+      redir_cnt = 0;
+
+      while ((tok = strsep(&p, " "))) {
+        if (*tok == '\0') {
+          continue;
+        }
+
+        if (strcmp(tok, ">") == 0) {
+          redir_pos = wish_argc;
+          ++redir_cnt;
+        }
+
+        wish_argv[wish_argc++] = strdup(tok);
       }
 
-      if (chdir(wish_argv[1])) {
-	write(STDERR_FILENO, error_message, strlen(error_message));
+      wish_argv[wish_argc] = NULL;
+
+      // more than one > or more than one files followed >
+      if (redir_cnt > 1 || (redir_cnt == 1 && redir_pos != wish_argc - 2)) {
+        write(STDERR_FILENO, error_message, strlen(error_message));
+        continue;
       }
 
-      continue;
+      if (strcmp(wish_argv[0], "exit") == 0) {
+        if (wish_argc != 1) {
+          write(STDERR_FILENO, error_message, strlen(error_message));
+          continue;
+        }
+
+        exit(0);
+      }
+
+      if (strcmp(wish_argv[0], "cd") == 0) {
+        if (wish_argc != 2) {
+          write(STDERR_FILENO, error_message, strlen(error_message));
+          continue;
+        }
+
+        if (chdir(wish_argv[1])) {
+          write(STDERR_FILENO, error_message, strlen(error_message));
+        }
+
+        continue;
+      }
+
+      if (strcmp(wish_argv[0], "path")) {
+
+      }
+
+      pid = fork();
+
+      if (pid < 0) {
+        write(STDERR_FILENO, error_message, strlen(error_message));
+        continue;
+      } else if (pid == 0) {
+        // search /bin
+        snprintf(path, sizeof(path), "/bin/%s", wish_argv[0]);
+
+        // if (access(path, X_OK) != 0) {
+        //   // search /usr/bin
+        //   snprintf(path, sizeof(path), "/usr/bin/%s", wish_argv[0]);
+
+        //   if (access(path, X_OK) != 0) {
+        //     write(STDERR_FILENO, error_message, strlen(error_message));
+        //     continue;
+        //   }
+        // }
+
+        // handle redirection
+        if (redir_cnt == 1) {
+          int fd = open(wish_argv[wish_argc - 1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+
+          dup2(fd, STDOUT_FILENO);
+          close(fd);
+          wish_argv[redir_pos] = NULL;
+        }
+
+        execv(path, wish_argv);
+        write(STDERR_FILENO, error_message, strlen(error_message));
+      } else {
+        pids[pid_cnt++] = pid;
+      }
     }
 
-    if (strcmp(wish_argv[0], "path")) {
-
-    }
-
-    pid = fork();
-
-    if (pid < 0) {
-      // error
-      write(STDERR_FILENO, error_message, strlen(error_message));
-      continue;
-    } else if (pid == 0) {
-      // child
-      // search /bin
-      snprintf(path, strlen("/bin/") + strlen(line) + 1, "/bin/%s", line);
-      
-      if (access(path, X_OK) != 0) {
-	// search /usr/bin
-	snprintf(path, strlen("/usr/bin/") + strlen(line) + 1, "/usr/bin/%s", line);
-
-	if (access(path, X_OK) != 0) {
-	  write(STDERR_FILENO, error_message, strlen(error_message));
-	  continue;
-	}
-      }
-
-      // handle redirection
-      if (redir_cnt == 1) {
-	int fd = open(wish_argv[i - 1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
-
-	dup2(fd, STDOUT_FILENO);
-	close(fd);
-	wish_argv[redir_pos] = NULL;
-      }
-
-      execv(path, wish_argv);
-      write(STDERR_FILENO, error_message, strlen(error_message));
-      continue;
-    } else {
-      // parent
-      wait(NULL);
+    for (int i = 0; i < pid_cnt; ++i) {
+      waitpid(pids[i], NULL, 0);
     }
   }
 
@@ -157,4 +182,3 @@ int main(int argc, char *argv[]) {
 
   return 0;
 }
-
