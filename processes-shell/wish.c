@@ -6,9 +6,11 @@
 #include <fcntl.h>
 
 #define MAX_ARGS 10
-#define PATH_MAX 100
+#define MAX_PATH_LEN 100
 #define MAX_CMD_CNT 100
 #define MAX_CMD_LEN 200
+#define MAX_SEARCH_PATH 10
+#define MAX_SEARCH_PATH_LEN 20
 
 int main(int argc, char *argv[]) {
   char error_message[30] = "An error has occurred\n";
@@ -17,7 +19,7 @@ int main(int argc, char *argv[]) {
   size_t len = 0;
   char *wish_argv[MAX_ARGS + 1];
   ssize_t n;
-  char path[PATH_MAX];
+  char path[MAX_PATH_LEN];
   char *p;
   char *tok;
   int wish_argc = 0;
@@ -28,6 +30,8 @@ int main(int argc, char *argv[]) {
   int cmd_cnt = 0;
   pid_t pids[MAX_CMD_CNT];
   int pid_cnt = 0;
+  char search_paths[MAX_SEARCH_PATH][MAX_SEARCH_PATH_LEN];
+  int search_path_cnt = 1;
 
   if (argc > 2) {
     write(STDERR_FILENO, error_message, strlen(error_message));
@@ -44,6 +48,8 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  snprintf(search_paths[0], sizeof(search_paths[0]), "/bin");
+  
   while (1) {
     if (argc == 1) {
       printf("wish> ");
@@ -130,8 +136,24 @@ int main(int argc, char *argv[]) {
         continue;
       }
 
-      if (strcmp(wish_argv[0], "path")) {
+      if (strcmp(wish_argv[0], "path") == 0) {
+        if (wish_argc < 1) {
+          write(STDERR_FILENO, error_message, strlen(error_message));
+          continue;
+        }
 
+        for (int j = 1; j < wish_argc; ++j) {
+          snprintf(search_paths[j - 1], sizeof(search_paths[j - 1]), "%s", wish_argv[j]);
+        }
+
+        search_path_cnt = wish_argc - 1;
+        continue;
+      }
+
+      // empty search path -> cannot run any program
+      if (search_path_cnt == 0) {
+        write(STDERR_FILENO, error_message, strlen(error_message));
+        continue;
       }
 
       pid = fork();
@@ -140,18 +162,21 @@ int main(int argc, char *argv[]) {
         write(STDERR_FILENO, error_message, strlen(error_message));
         continue;
       } else if (pid == 0) {
-        // search /bin
-        snprintf(path, sizeof(path), "/bin/%s", wish_argv[0]);
+        int j = 0;
 
-        // if (access(path, X_OK) != 0) {
-        //   // search /usr/bin
-        //   snprintf(path, sizeof(path), "/usr/bin/%s", wish_argv[0]);
+        for (j = 0; j < search_path_cnt; ++j) {
+          snprintf(path, sizeof(path), "%s/%s", search_paths[0], wish_argv[0]);
 
-        //   if (access(path, X_OK) != 0) {
-        //     write(STDERR_FILENO, error_message, strlen(error_message));
-        //     continue;
-        //   }
-        // }
+          if (access(path, X_OK) == 0) {
+              break;
+          }
+        }
+
+        // every search path failed
+        if (j == search_path_cnt) {
+          write(STDERR_FILENO, error_message, strlen(error_message));
+          continue;
+        }
 
         // handle redirection
         if (redir_cnt == 1) {
