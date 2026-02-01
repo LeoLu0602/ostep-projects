@@ -23,8 +23,8 @@ int main(int argc, char *argv[]) {
   char *p;
   char *tok;
   int wish_argc = 0;
-  int redir_pos = -1; // index of the last ">" in wish_argv, -1 if not present
-  int redir_cnt = 0;
+  char *redir;
+  char *redir_file;
   FILE *fp = stdin;
   char cmds[MAX_CMD_CNT][MAX_CMD_LEN + 1];
   int cmd_cnt = 0;
@@ -87,20 +87,28 @@ int main(int argc, char *argv[]) {
 		pid_cnt = 0;
 
     for (int i = 0; i < cmd_cnt; ++i) {
+      // separate cmds[i] into two parts using '>' as delimiter
+      redir = strchr(cmds[i], '>');
+      redir_file = NULL;
+
+      if (redir) {
+        *redir = '\0';
+        redir_file = redir + 1;
+        
+        // not exactly one file & multiple '>'
+        if (*redir_file == '\0' || strchr(redir_file, ' ') || strchr(redir_file, '>')) {
+          write(STDERR_FILENO, error_message, strlen(error_message));
+          continue;
+        }
+      }
+
       // build wish_argv
-      p = cmds[i];
       wish_argc = 0;
-      redir_pos = -1;
-      redir_cnt = 0;
+      p = cmds[i];
 
       while ((tok = strsep(&p, " "))) {
         if (*tok == '\0') {
           continue;
-        }
-
-        if (strcmp(tok, ">") == 0) {
-          redir_pos = wish_argc;
-          ++redir_cnt;
         }
 
         wish_argv[wish_argc++] = strdup(tok);
@@ -108,12 +116,11 @@ int main(int argc, char *argv[]) {
 
       wish_argv[wish_argc] = NULL;
 
-      // more than one > or more than one files followed >
-      if (redir_cnt > 1 || (redir_cnt == 1 && redir_pos != wish_argc - 2)) {
-        write(STDERR_FILENO, error_message, strlen(error_message));
+      // make sure wish_argv[0] is not null
+      if (wish_argc == 0) {
         continue;
       }
-
+      
       if (strcmp(wish_argv[0], "exit") == 0) {
         if (wish_argc != 1) {
           write(STDERR_FILENO, error_message, strlen(error_message));
@@ -179,12 +186,11 @@ int main(int argc, char *argv[]) {
         }
 
         // handle redirection
-        if (redir_cnt == 1) {
-          int fd = open(wish_argv[wish_argc - 1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (redir_file) {
+          int fd = open(redir_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 
           dup2(fd, STDOUT_FILENO);
           close(fd);
-          wish_argv[redir_pos] = NULL;
         }
 
         execv(path, wish_argv);
