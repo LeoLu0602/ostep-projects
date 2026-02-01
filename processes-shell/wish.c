@@ -12,6 +12,37 @@
 #define MAX_SEARCH_PATH 10
 #define MAX_SEARCH_PATH_LEN 20
 
+char *trim(char *s) {
+  char *start = s;
+  char *end = s + strlen(s) - 1;
+
+  while (*start == ' ') {
+    ++start;
+  }
+
+  while (*end == ' ') {
+    *end-- = '\0';
+  }
+
+  return start;
+}
+
+int count_files(char *s) {
+  int cnt = 0;
+  char *tok;
+  char *p = strdup(s);
+
+  while ((tok = strsep(&p, " "))) {
+    if (*tok == '\0') {
+      continue;
+    }
+
+    ++cnt;
+  }
+
+  return cnt;
+}
+
 int main(int argc, char *argv[]) {
   char error_message[30] = "An error has occurred\n";
   int pid;
@@ -93,10 +124,10 @@ int main(int argc, char *argv[]) {
 
       if (redir) {
         *redir = '\0';
-        redir_file = redir + 1;
-        
+        redir_file = trim(redir + 1);
+
         // not exactly one file & multiple '>'
-        if (*redir_file == '\0' || strchr(redir_file, ' ') || strchr(redir_file, '>')) {
+        if (count_files(redir_file) != 1 || strchr(redir_file, '>')) {
           write(STDERR_FILENO, error_message, strlen(error_message));
           continue;
         }
@@ -118,6 +149,10 @@ int main(int argc, char *argv[]) {
 
       // make sure wish_argv[0] is not null
       if (wish_argc == 0) {
+        if (redir_file) {
+          write(STDERR_FILENO, error_message, strlen(error_message));
+        }
+     
         continue;
       }
       
@@ -172,7 +207,7 @@ int main(int argc, char *argv[]) {
         int j = 0;
 
         for (j = 0; j < search_path_cnt; ++j) {
-          snprintf(path, sizeof(path), "%s/%s", search_paths[0], wish_argv[0]);
+          snprintf(path, sizeof(path), "%s/%s", search_paths[j], wish_argv[0]);
 
           if (access(path, X_OK) == 0) {
               break;
