@@ -16,10 +16,6 @@ sys_getpinfo(void) {
     return -1;
   }
 
-  for (int i = 0; i < NPROC; ++i) {
-    printf(1, "inuse = %d, tickets = %d, pid = %d, ticks = %d\n", pst->inuse[i], pst->tickets[i], pst->pid[i], pst->ticks[i]);
-  }
-
   return 0;
 }
 
@@ -34,6 +30,8 @@ sys_settickets(void) {
   if (n < 1) {
     return -1;
   }
+
+  myproc()->tickets = n;
 
   return 0;
 }
