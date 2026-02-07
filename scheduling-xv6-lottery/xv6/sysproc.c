@@ -6,17 +6,36 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
+#include "pstat.h"
+
+int
+sys_getpinfo(void) {
+  struct pstat *pst;
+
+  if(argptr(0, (void*)&pst, sizeof(*pst)) < 0 || !pst) {
+    return -1;
+  }
+
+  for (int i = 0; i < NPROC; ++i) {
+    printf(1, "inuse = %d, tickets = %d, pid = %d, ticks = %d\n", pst->inuse[i], pst->tickets[i], pst->pid[i], pst->ticks[i]);
+  }
+
+  return 0;
+}
 
 int
 sys_settickets(void) {
   int n;
 
-  if(argint(0, &n) < 0) {
+  if (argint(0, &n) < 0) {
     return -1;
   }
 
-  return n;
-  // return 0;
+  if (n < 1) {
+    return -1;
+  }
+
+  return 0;
 }
 
 int
