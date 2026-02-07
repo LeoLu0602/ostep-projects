@@ -11,8 +11,9 @@ int main(void) {
     if (pid == 0) {
         settickets(30);
         
-        for(int i = 0; i < 100000000; ++i)
-            ; 
+        for (int i = 0; i < 100; ++i) {
+            sleep(1);
+        }
     }
 
     // child B: 20 tickets
@@ -21,8 +22,9 @@ int main(void) {
     if (pid == 0) {
         settickets(20);
         
-        for(int i = 0; i < 100000000; ++i)
-            ; 
+        for (int i = 0; i < 100; ++i) {
+            sleep(1);
+        }
     }
 
     // child C: 10 tickets
@@ -31,8 +33,9 @@ int main(void) {
     if (pid == 0) {
         settickets(10);
         
-        for(int i = 0; i < 100000000; ++i)
-            ; 
+        for (int i = 0; i < 100; ++i) {
+            sleep(1);
+        }
     }
 
     // parent just waits
