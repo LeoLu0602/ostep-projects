@@ -1,15 +1,19 @@
-
 #include "types.h"
 #include "user.h"
 
-int main(void) {
-    struct pstat p;
+int main(int argc, char *argv[]) {
+  struct pstat ps;
 
-    getpinfo(&p);
-
-    for (int i = 0; i < NPROC; ++i) {
-        printf(1, "pid: %d, tickets: %d, ticks: %d\n", p.pid[i], p.tickets[i], p.ticks[i]);
-    }
-
+  if (getpinfo(&ps) < 0){
+    printf(2, "getpinfo failed\n");
     exit();
+  }
+
+  for (int i = 0; i < NPROC; i++){
+    if (ps.inuse[i]) {
+      printf(1, "%d %d %d\n", ps.pid[i], ps.tickets[i], ps.ticks[i]);
+    }
+  }
+
+  exit();
 }

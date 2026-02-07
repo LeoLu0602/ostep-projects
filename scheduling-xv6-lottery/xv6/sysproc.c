@@ -10,11 +10,13 @@
 
 int
 sys_getpinfo(void) {
-  struct pstat *pst;
+  struct pstat *p;
 
-  if(argptr(0, (void*)&pst, sizeof(*pst)) < 0 || !pst) {
+  if (argptr(0, (void*)&p, sizeof(*p)) < 0 || !p) {
     return -1;
   }
+
+  getpinfo(p);
 
   return 0;
 }

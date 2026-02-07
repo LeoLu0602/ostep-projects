@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "pstat.h"
 
 struct {
   struct spinlock lock;
@@ -19,6 +20,20 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
+
+void
+getpinfo(struct pstat *ps) {
+  acquire(&ptable.lock);
+
+  for (int i = 0; i < NPROC; ++i) {
+    ps->inuse[i] = ptable.proc[i].state != UNUSED;
+    ps->tickets[i] = ptable.proc[i].tickets;
+    ps->pid[i] = ptable.proc[i].pid;
+    ps->ticks[i] = ptable.proc[i].ticks;
+  }
+
+  release(&ptable.lock);
+}
 
 void
 pinit(void)
