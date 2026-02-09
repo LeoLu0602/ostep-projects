@@ -6,12 +6,11 @@ int main(int argc, char *argv[]) {
   int pid1, pid2, pid3;
   struct pstat ps;
 
-  settickets(69);
-
 	// child 1
   pid = fork();
 
   if (pid == 0){
+    settickets(30);
     
     while (1)
         ;
@@ -45,7 +44,7 @@ int main(int argc, char *argv[]) {
 	pid3 = pid;
 
 	// let scheduler run
-  sleep(500);
+  sleep(10000);
 
 	// take a snapshot
   if (getpinfo(&ps) >= 0){

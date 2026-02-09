@@ -329,6 +329,16 @@ wait(void)
   }
 }
 
+
+// a pseudo-random number generator using a linear congruential generator
+uint
+krand(void) {
+  static uint seed = 1;
+
+  // these two numbers are well-known constants chosen
+  return (seed = seed * 1103515245 + 12345);
+}
+
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -342,17 +352,45 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+  uint ntickets;
+  uint winner;
+  uint cnt;
+
   c->proc = 0;
   
   for(;;){
     // Enable interrupts on this processor.
     sti();
-
-    // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
+    ntickets = 0;
+
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+      if (p->state != RUNNABLE) {
         continue;
+      }
+      
+      ntickets += p->tickets;
+    }
+
+    // x % 0 is undefined
+    if (ntickets == 0) {
+      release(&ptable.lock); // to prevent deadlock
+      continue;
+    }
+
+    winner = (krand() % ntickets) + 1;
+    cnt = 0;
+
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if (p->state != RUNNABLE) {
+        continue;
+      }
+
+      cnt += p->tickets;
+      
+      if (cnt < winner) {
+        continue;
+      }
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -361,16 +399,16 @@ scheduler(void)
       switchuvm(p);
       p->state = RUNNING;
       (p->ticks)++;
-
       swtch(&(c->scheduler), p->context);
       switchkvm();
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
+      break;
     }
-    release(&ptable.lock);
 
+    release(&ptable.lock);
   }
 }
 
