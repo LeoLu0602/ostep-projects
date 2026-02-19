@@ -25,6 +25,7 @@ task task_queue[TASK_QUEUE_SIZE];
 int queue_front = -1;
 int queue_rear = -1;
 int queue_cnt = 0;
+int stop = 0;
 pthread_mutex_t mutex_q = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond_q_not_empty = PTHREAD_COND_INITIALIZER;
 pthread_cond_t cond_q_not_full = PTHREAD_COND_INITIALIZER;
@@ -53,11 +54,13 @@ void *worker(void *arg) {
   while (1) {
     pthread_mutex_lock(&mutex_q);
 
-    while (queue_cnt == 0) {
+    while (queue_cnt == 0 && !stop) {
+      pthread_cond_wait(&cond_q_not_empty, &mutex_q);
+    }
+
+    if (queue_cnt == 0 && stop) {
       pthread_mutex_unlock(&mutex_q);
-      return NULL;
-      
-      // pthread_cond_wait(&cond_q_not_empty, &mutex_q);
+      break;
     }
     
     task t = task_queue[queue_front];
@@ -74,7 +77,7 @@ void *worker(void *arg) {
 }
 
 void* compress(void *arg) {
-  printf("compress %d\n", ((task_arg *)arg)->chunk_i);
+  printf("compress %d (tid: %lu)\n", ((task_arg *)arg)->chunk_i, pthread_self());
   
   return NULL;
 }
@@ -128,6 +131,11 @@ int main(int argc, char *argv[]) {
     arg->chunk_i = i;
     submit_task(&compress, (void *)arg); 
   }
+
+  pthread_mutex_lock(&mutex_q);
+  stop = 1;
+  pthread_cond_broadcast(&cond_q_not_empty);
+  pthread_mutex_unlock(&mutex_q);
   //========== cleanup ==========//
   for (int i = 0; i < n; ++i) {
     if (pthread_join(threads[i], NULL) != 0) {
