@@ -1,2 +1,2 @@
 all:
-	gcc -o pzip pzip.c -Wall -Werror -pthread -O
+	gcc -o pzip pzip.c -Wall -Werror -pthread -lm -O
