@@ -17,8 +17,9 @@ typedef struct {
 } task;
 
 typedef struct {
-  char *data;
   int chunk_i;
+  char *start;
+  char *end;
 } task_arg;
 
 task task_queue[TASK_QUEUE_SIZE];
@@ -77,7 +78,29 @@ void *worker(void *arg) {
 }
 
 void* compress(void *arg) {
-  printf("compress %d (tid: %lu)\n", ((task_arg *)arg)->chunk_i, pthread_self());
+  int chunk_i = ((task_arg *)arg)->chunk_i;
+  char *start = ((task_arg *)arg)->start;
+  char *end = ((task_arg *)arg)->end;
+  char *cur = start;
+  char last = EOF;
+  int cnt = 0;
+
+  printf("chunk_i = %d, tid = %lu\n", chunk_i, pthread_self());
+  
+  while (cur <= end) {
+    if (*cur == last) {
+      ++cnt;
+    } else {
+      if (last != EOF) {
+	printf("%d%c", cnt, last);
+      }
+      
+      last = *cur;
+      cnt = 1;
+    }
+
+    ++cur;
+  }
   
   return NULL;
 }
@@ -127,8 +150,9 @@ int main(int argc, char *argv[]) {
   
   for (int i = 0; i < chunk_num; ++i) {
     arg = (task_arg *)malloc(sizeof(task_arg));
-    arg->data = data;
     arg->chunk_i = i;
+    arg->start = data + i * CHUNK_SIZE;
+    arg->end = (i == chunk_num - 1) ? data + statbuf.st_size - 1 : data + (i + 1) * CHUNK_SIZE - 1;
     submit_task(&compress, (void *)arg); 
   }
 
