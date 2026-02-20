@@ -7,9 +7,11 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <math.h>
+#include <string.h>
 
 #define CHUNK_SIZE 1024 // 1 KB
-#define TASK_QUEUE_SIZE (1024 * 1024 * 4) // compress up to 4 GB
+#define TASK_QUEUE_SIZE 1024
+#define MAX_CHUNK_NUM (1024 * 1024 * 4) // compress up to 4 GB
 
 typedef struct {
   void *(*fn)(void *);
@@ -27,6 +29,7 @@ int queue_front = -1;
 int queue_rear = -1;
 int queue_cnt = 0;
 int stop = 0;
+char *res[MAX_CHUNK_NUM]; // todo: free res
 pthread_mutex_t mutex_q = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond_q_not_empty = PTHREAD_COND_INITIALIZER;
 pthread_cond_t cond_q_not_full = PTHREAD_COND_INITIALIZER;
@@ -82,17 +85,25 @@ void* compress(void *arg) {
   char *start = ((task_arg *)arg)->start;
   char *end = ((task_arg *)arg)->end;
   char *cur = start;
-  char last = EOF;
+  char last = '\0';
   int cnt = 0;
-
-  printf("chunk_i = %d, tid = %lu\n", chunk_i, pthread_self());
+  /*
+   * worst case:
+   * abababab... -> 1a1b1a1b...
+   * size 5x
+   */
+  char *out = (char *)malloc(5 * CHUNK_SIZE);
+  char *p = out;
   
   while (cur <= end) {
     if (*cur == last) {
       ++cnt;
     } else {
-      if (last != EOF) {
-	printf("%d%c", cnt, last);
+      if (last != '\0') {
+	memcpy(p, &cnt, sizeof(cnt));
+	p += sizeof(cnt);
+	memcpy(p, &last, sizeof(last));
+	p += sizeof(last);
       }
       
       last = *cur;
@@ -101,6 +112,13 @@ void* compress(void *arg) {
 
     ++cur;
   }
+  
+  memcpy(p, &cnt, sizeof(cnt));
+  p += sizeof(cnt);
+  memcpy(p, &last, sizeof(last));
+  p += sizeof(last);
+  res[chunk_i] = out;
+  // fwrite(res[chunk_i], p - out, 1, stdout);
   
   return NULL;
 }
