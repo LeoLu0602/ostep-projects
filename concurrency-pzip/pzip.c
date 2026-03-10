@@ -9,9 +9,15 @@
 #include <math.h>
 #include <string.h>
 
-#define CHUNK_SIZE 1024 // 1 KB
+#define CHUNK_SIZE 256
 #define TASK_QUEUE_SIZE 1024
-#define MAX_CHUNK_NUM (1024 * 1024 * 4) // compress up to 4 GB
+#define MAX_CHUNK_NUM (1024 * 1024 * 4) // compress up to 1 GB
+
+typedef struct {
+  int nblock;
+  int cnt_arr[64];
+  char c_arr[64];
+} compressed_chunk;
 
 typedef struct {
   void *(*fn)(void *);
@@ -29,7 +35,8 @@ int queue_front = -1;
 int queue_rear = -1;
 int queue_cnt = 0;
 int stop = 0;
-char *res[MAX_CHUNK_NUM]; // todo: free res
+
+compressed_chunk res[MAX_CHUNK_NUM];
 pthread_mutex_t mutex_q = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond_q_not_empty = PTHREAD_COND_INITIALIZER;
 pthread_cond_t cond_q_not_full = PTHREAD_COND_INITIALIZER;
@@ -86,26 +93,25 @@ void* compress(void *arg) {
   char *end = ((task_arg *)arg)->end;
   char *cur = start;
   char last = '\0';
+  int first_block = 1;
   int cnt = 0;
-  /*
-   * worst case:
-   * abababab... -> 1a1b1a1b...
-   * size 5x
-   */
-  char *out = (char *)malloc(5 * CHUNK_SIZE);
-  char *p = out;
-  
+  int nblock = 0;
+
   while (cur <= end) {
+    if (first_block) {
+      first_block = 0;
+      last = *cur;
+      ++cur;
+      cnt = 1;
+      continue;
+    }
+
     if (*cur == last) {
       ++cnt;
     } else {
-      if (last != '\0') {
-	memcpy(p, &cnt, sizeof(cnt));
-	p += sizeof(cnt);
-	memcpy(p, &last, sizeof(last));
-	p += sizeof(last);
-      }
-      
+      res[chunk_i].cnt_arr[nblock] = cnt;
+      res[chunk_i].c_arr[nblock] = last;
+      ++nblock;
       last = *cur;
       cnt = 1;
     }
@@ -113,14 +119,30 @@ void* compress(void *arg) {
     ++cur;
   }
   
-  memcpy(p, &cnt, sizeof(cnt));
-  p += sizeof(cnt);
-  memcpy(p, &last, sizeof(last));
-  p += sizeof(last);
-  res[chunk_i] = out;
-  // fwrite(res[chunk_i], p - out, 1, stdout);
-  
+  res[chunk_i].cnt_arr[nblock] = cnt;
+  res[chunk_i].c_arr[nblock] = last;
+  ++nblock;
+  res[chunk_i].nblock = nblock;
+
   return NULL;
+}
+
+void merge(int chunk_num) {
+  for (int i = 0; i < chunk_num; ++i) {
+    for (int j = 0; j < res[i].nblock; ++j) {
+      if (
+	  i != chunk_num - 1 && 
+	  j == res[i].nblock - 1 &&
+	  res[i].c_arr[j] == res[i + 1].c_arr[0]
+      ) {
+	res[i + 1].cnt_arr[0] += res[i].cnt_arr[j];
+	continue;
+      }
+
+      fwrite(&(res[i].cnt_arr[j]), sizeof(int), 1, stdout);
+      fwrite(&(res[i].c_arr[j]), 1, 1, stdout);
+    }
+  }
 }
 
 int main(int argc, char *argv[]) {
@@ -173,7 +195,7 @@ int main(int argc, char *argv[]) {
     arg->end = (i == chunk_num - 1) ? data + statbuf.st_size - 1 : data + (i + 1) * CHUNK_SIZE - 1;
     submit_task(&compress, (void *)arg); 
   }
-
+  //========== shutdown ==========//
   pthread_mutex_lock(&mutex_q);
   stop = 1;
   pthread_cond_broadcast(&cond_q_not_empty);
@@ -185,7 +207,9 @@ int main(int argc, char *argv[]) {
       exit(1);
     }
   }
-  
+  //========== merge ==========//
+  merge(chunk_num);
+  //========== cleanup ==========//
   close(fd);
   munmap(data, statbuf.st_size);
   pthread_mutex_destroy(&mutex_q);
