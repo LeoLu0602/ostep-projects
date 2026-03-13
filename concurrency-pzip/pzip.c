@@ -12,6 +12,7 @@
 #define CHUNK_SIZE 256
 #define TASK_QUEUE_SIZE 1024
 #define MAX_CHUNK_NUM (1024 * 1024 * 4) // compress up to 1 GB
+#define MAX_FILES 5
 
 typedef struct {
   int nblock;
@@ -152,27 +153,36 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  //========== get file stat ==========//
-  int fd;
-
-  if ((fd = open(argv[1], O_RDONLY)) == -1) {
-    printf("pzip: open failed\n");
+  if (argc > MAX_FILES + 1) {
+    printf("pzip: too many files (max: %d)\n", MAX_FILES);
     exit(1);
   }
-  
-  struct stat statbuf;
+  //========== get file stat & mmap ==========//
+  int file_num = argc - 1;
+  struct stat file_stats[MAX_FILES];
+  char *file_data[MAX_FILES];
 
-  if (stat(argv[1], &statbuf) != 0) {
-    printf("pzip: stat failed\n");
-    exit(1);
-  }
-  //========== mmap ==========//
-  char *data;
+  for (int i = 0; i < file_num; ++i) {
+    //========== get file stat ==========//
+    int fd;
 
-  if ((data = mmap(NULL, statbuf.st_size, PROT_READ, MAP_PRIVATE, fd, 0)) == MAP_FAILED) {
-    printf("pzip: mmap failed\n");
+    if ((fd = open(argv[i + 1], O_RDONLY)) == -1) {
+      printf("pzip: open failed\n");
+      exit(1);
+    }
+    
+    if (stat(argv[i + 1], &file_stats[i]) != 0) {
+      printf("pzip: stat failed\n");
+      exit(1);
+    }
+    //========== mmap ==========//
+    if ((file_data[i] = mmap(NULL, file_stats[i].st_size, PROT_READ, MAP_PRIVATE, fd, 0)) == MAP_FAILED) {
+      printf("pzip: mmap failed\n");
+      close(fd);
+      exit(1);
+    }
+
     close(fd);
-    exit(1);
   }
   //========== create threads ==========//
   int n = get_nprocs();
@@ -185,15 +195,20 @@ int main(int argc, char *argv[]) {
     }
   }
   //========== fill task queue ==========//
-  int chunk_num = ceil(((double)statbuf.st_size) / CHUNK_SIZE);
-  task_arg *arg;
-  
-  for (int i = 0; i < chunk_num; ++i) {
-    arg = (task_arg *)malloc(sizeof(task_arg));
-    arg->chunk_i = i;
-    arg->start = data + i * CHUNK_SIZE;
-    arg->end = (i == chunk_num - 1) ? data + statbuf.st_size - 1 : data + (i + 1) * CHUNK_SIZE - 1;
-    submit_task(&compress, (void *)arg); 
+  int chunk_cnt = 0;
+
+  for (int i = 0; i < file_num; ++i) {
+    int chunk_num = ceil(((double)file_stats[i].st_size) / CHUNK_SIZE);
+    task_arg *arg;
+    
+    for (int j = 0; j < chunk_num; ++j) {
+      arg = (task_arg *)malloc(sizeof(task_arg));
+      arg->chunk_i = chunk_cnt;
+      ++chunk_cnt;
+      arg->start = file_data[i] + j * CHUNK_SIZE;
+      arg->end = (j == chunk_num - 1) ? file_data[i] + file_stats[i].st_size - 1 : file_data[i] + (j + 1) * CHUNK_SIZE - 1;
+      submit_task(&compress, (void *)arg); 
+    }
   }
   //========== shutdown ==========//
   pthread_mutex_lock(&mutex_q);
@@ -208,10 +223,12 @@ int main(int argc, char *argv[]) {
     }
   }
   //========== merge ==========//
-  merge(chunk_num);
+  merge(chunk_cnt);
   //========== cleanup ==========//
-  close(fd);
-  munmap(data, statbuf.st_size);
+  for (int i = 0; i < file_num; ++i) {
+    munmap(file_data[i], file_stats[i].st_size);
+  }
+
   pthread_mutex_destroy(&mutex_q);
   pthread_cond_destroy(&cond_q_not_empty);
   pthread_cond_destroy(&cond_q_not_full);
