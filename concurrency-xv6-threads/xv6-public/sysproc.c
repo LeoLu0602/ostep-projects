@@ -8,6 +8,24 @@
 #include "proc.h"
 
 int
+sys_clone(void)
+{	
+  int fcn, arg1, arg2;
+  char *stack;
+
+  if (
+      argint(0, &fcn) < 0 ||
+      argint(1, &arg1) < 0 ||
+      argint(2, &arg2) < 0 ||
+      argptr(3, &stack, PGSIZE) < 0
+    ) {
+    return -1;
+  }
+
+  return clone((void (*)(void *, void *))fcn, (void *)arg1, (void *)arg2, (void *)stack);
+}
+
+int
 sys_fork(void)
 {
   return fork();
@@ -90,8 +108,3 @@ sys_uptime(void)
   return xticks;
 }
 
-int
-sys_clone(void)
-{
-  return 0;
-}

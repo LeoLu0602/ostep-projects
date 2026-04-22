@@ -174,6 +174,52 @@ growproc(int n)
   return 0;
 }
 
+int
+clone(void (*fcn)(void *, void *), void *arg1, void *arg2, void *stack)
+{
+  int i, pid;
+  struct proc *np;
+  struct proc *curproc = myproc();
+
+  if (!stack || ((uint)stack % PGSIZE != 0)) {
+    return -1;
+  }
+
+  if ((np = allocproc()) == 0) {
+    return -1;
+  }
+
+  np->pgdir = curproc->pgdir;
+  np->sz = curproc->sz;
+  np->parent = curproc;
+  *(np->tf) = *(curproc->tf);
+  np->tf->eax = 0;
+  np->tf->eip = (uint)fcn;
+  uint *sp = (uint *)(stack + PGSIZE);
+  sp--;
+  *sp = (uint)arg2;
+  sp--;
+  *sp = (uint)arg1;
+  sp--;
+  *sp = 0xffffffff;
+  np->tf->esp = (uint)sp;
+
+  for (i = 0; i < NOFILE; i++) {
+    if (curproc->ofile[i]) {
+      np->ofile[i] = filedup(curproc->ofile[i]);
+    }
+  }
+  
+  np->cwd = idup(curproc->cwd);
+  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+  pid = np->pid;
+  acquire(&ptable.lock);
+  np->state = RUNNABLE;
+  release(&ptable.lock);
+
+  return pid;
+}
+
 // Create a new process copying p as the parent.
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
