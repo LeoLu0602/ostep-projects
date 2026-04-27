@@ -8,6 +8,12 @@
 #include "proc.h"
 
 int
+sys_join(void)
+{
+  return -1;
+}
+
+int
 sys_clone(void)
 {	
   int fcn, arg1, arg2;

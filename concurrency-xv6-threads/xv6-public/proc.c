@@ -175,6 +175,12 @@ growproc(int n)
 }
 
 int
+join(void **stack)
+{
+
+}
+
+int
 clone(void (*fcn)(void *, void *), void *arg1, void *arg2, void *stack)
 {
   int i, pid;

@@ -8,8 +8,9 @@ void fcn(void *arg1, void *arg2) {
 
 int main(int argc, char *argv[]) {
   void *stack = malloc(4096);
-  int pid = clone(&fcn, (void *)69, (void *)247, stack);
+  // int pid = clone(&fcn, (void *)69, (void *)247, stack);
 
-  printf(1, "pid: %d\n", pid);
+  // printf(1, "pid: %d\n", pid);
+  printf(1, "join returns %d\n", join(&stack));
   exit();
 }
