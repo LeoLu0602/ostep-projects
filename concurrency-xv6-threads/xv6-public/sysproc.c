@@ -10,7 +10,13 @@
 int
 sys_join(void)
 {
-  return -1;
+  char **stack;
+
+  if (argptr(0, &stack, sizeof(void *)) < 0) {
+    return -1;
+  }
+
+  return join(stack);
 }
 
 int

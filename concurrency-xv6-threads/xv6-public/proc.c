@@ -175,12 +175,6 @@ growproc(int n)
 }
 
 int
-join(void **stack)
-{
-
-}
-
-int
 clone(void (*fcn)(void *, void *), void *arg1, void *arg2, void *stack)
 {
   int i, pid;
@@ -194,7 +188,8 @@ clone(void (*fcn)(void *, void *), void *arg1, void *arg2, void *stack)
   if ((np = allocproc()) == 0) {
     return -1;
   }
-
+  
+  np->ustack = stack;
   np->pgdir = curproc->pgdir;
   np->sz = curproc->sz;
   np->parent = curproc;
@@ -319,6 +314,58 @@ exit(void)
   panic("zombie exit");
 }
 
+int
+join(void **stack)
+{
+  struct proc *p;
+  int havekids, pid;
+  struct proc *curproc = myproc();
+  
+  acquire(&ptable.lock);
+  
+  for (;;) {
+    // Scan through table looking for exited children.
+    havekids = 0;
+
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+      if (
+	  (p->parent != curproc) || 
+	  (p->pgdir != curproc->pgdir)
+      ) {
+        continue;
+      }
+  
+      havekids = 1;
+
+      if (p->state == ZOMBIE) {
+        // Found one.
+	*stack = p->ustack;
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        release(&ptable.lock);
+
+        return pid;
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if (!havekids || curproc->killed) {
+      release(&ptable.lock);
+
+      return -1;
+    }
+
+    // Wait for children to exit. (See wakeup1 call in proc_exit.)
+    sleep(curproc, &ptable.lock);  // DOC: wait-sleep
+  }
+}
+
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
 int
@@ -333,7 +380,7 @@ wait(void)
     // Scan through table looking for exited children.
     havekids = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->parent != curproc)
+      if(p->parent != curproc || p->pgdir == curproc->pgdir)
         continue;
       havekids = 1;
       if(p->state == ZOMBIE){
