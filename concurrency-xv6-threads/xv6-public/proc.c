@@ -320,7 +320,9 @@ join(void **stack)
   struct proc *p;
   int havekids, pid;
   struct proc *curproc = myproc();
-  
+  int free_pgdir;
+  pde_t *pgdir;
+
   acquire(&ptable.lock);
   
   for (;;) {
@@ -339,16 +341,41 @@ join(void **stack)
 
       if (p->state == ZOMBIE) {
         // Found one.
+	struct proc *q;
+	
+	free_pgdir = 1;
+
+	for (q = ptable.proc; q < &ptable.proc[NPROC]; q++) {
+	  // Only free pgdir if p is the last thread using it.
+	  if (
+	      p != q && 
+	      p->pgdir == q->pgdir && 
+	      q->state != UNUSED &&
+	      q->state != ZOMBIE
+	  ) {
+	    // Found a "live" thread q using p->pgdir.
+	    free_pgdir = 0;
+
+	    break;
+	  }
+	}
+
 	*stack = p->ustack;
+	pgdir = p->pgdir;
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
+	p->ustack = 0;
         p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
         release(&ptable.lock);
+	
+	if (free_pgdir) {
+	  freevm(pgdir);
+	}
 
         return pid;
       }
