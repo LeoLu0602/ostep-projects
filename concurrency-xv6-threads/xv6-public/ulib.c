@@ -104,3 +104,36 @@ memmove(void *vdst, const void *vsrc, int n)
     *dst++ = *src++;
   return vdst;
 }
+
+int 
+thread_create(void (*start_routine)(void *, void *), void *arg1, void *arg2)
+{
+  void *raw_stack;
+  void *stack;
+  int pid;
+  
+  // Why PGSIZE * 2?
+  // Need enough space left after realignment.
+  if ((raw_stack = malloc(PGSIZE * 2)) == 0) {
+    return -1;
+  }
+
+  // Stack should be page-aligned.
+  stack = (void *)(((uint)raw_stack + PGSIZE) & ~(PGSIZE - 1));
+  
+  // Save raw_stack just before stack for later freeing.
+  ((void **)stack)[-1] = raw_stack;
+  
+  if ((pid = clone(start_routine, arg1, arg2, stack)) < 0) {
+    free(raw_stack);
+
+    return -1;
+  }
+   
+  return pid;
+}
+
+int thread_join(void)
+{
+
+}
