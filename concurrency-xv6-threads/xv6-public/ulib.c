@@ -149,16 +149,22 @@ int thread_join(void)
   return pid;
 }
 
-void lock_acquire(lock_t *)
+void lock_acquire(lock_t *lock)
+{
+  int ticket = fetch_and_add(&(lock->ticket), 1);
+
+  while (lock->turn != ticket)
+    ;
+}
+
+void lock_release(lock_t *lock)
 {
 }
 
-void lock_release(lock_t *)
+void lock_init(lock_t *lock)
 {
-}
-
-void lock_init(lock_t *)
-{
+  lock->ticket = 0;
+  lock->turn = 0;
 }
 
 static inline int fetch_and_add(int* variable, int value) {

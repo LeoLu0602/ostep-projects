@@ -44,9 +44,9 @@ int thread_join(void);
 
 typedef struct {
   int ticket;
-  int turn;
+  int turn;  
 } lock_t; 
 
-void lock_acquire(lock_t *);
-void lock_release(lock_t *);
-void lock_init(lock_t *);
+void lock_acquire(lock_t*);
+void lock_release(lock_t*);
+void lock_init(lock_t*);
