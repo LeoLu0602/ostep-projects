@@ -4,6 +4,8 @@
 #include "user.h"
 #include "x86.h"
 
+#define PGSIZE 4096
+
 char*
 strcpy(char *s, const char *t)
 {
@@ -135,5 +137,14 @@ thread_create(void (*start_routine)(void *, void *), void *arg1, void *arg2)
 
 int thread_join(void)
 {
+  void *stack;
+  int pid;
 
+  if ((pid = join(&stack)) < 0) {
+    return -1;
+  }
+
+  free(((void **)stack)[-1]); 
+
+  return pid;
 }
