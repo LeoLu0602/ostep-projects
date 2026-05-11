@@ -148,3 +148,26 @@ int thread_join(void)
 
   return pid;
 }
+
+void lock_acquire(lock_t *)
+{
+}
+
+void lock_release(lock_t *)
+{
+}
+
+void lock_init(lock_t *)
+{
+}
+
+static inline int fetch_and_add(int* variable, int value) {
+  asm volatile(
+      "lock; xaddl %0, %1"
+      : "+r" (value), "+m" (*variable) // input + output
+      : // No input-only
+      : "memory"
+  );
+
+  return value;
+}
