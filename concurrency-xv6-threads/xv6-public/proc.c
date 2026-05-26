@@ -20,9 +20,12 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
+struct spinlock sbrklock;
+
 void
 pinit(void)
 {
+  initlock(&sbrklock, "sbrk");
   initlock(&ptable.lock, "ptable");
 }
 

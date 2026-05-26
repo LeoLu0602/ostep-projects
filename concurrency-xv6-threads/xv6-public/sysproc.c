@@ -72,6 +72,8 @@ sys_getpid(void)
   return myproc()->pid;
 }
 
+extern struct spinlock sbrklock;
+
 int
 sys_sbrk(void)
 {
@@ -80,9 +82,13 @@ sys_sbrk(void)
 
   if(argint(0, &n) < 0)
     return -1;
+  acquire(&sbrklock);
   addr = myproc()->sz;
-  if(growproc(n) < 0)
+  if(growproc(n) < 0) {
+    release(&sbrklock);
     return -1;
+  }
+  release(&sbrklock);
   return addr;
 }
 
