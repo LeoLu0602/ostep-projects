@@ -159,6 +159,7 @@ void lock_acquire(lock_t *lock)
 
 void lock_release(lock_t *lock)
 {
+  ++(lock->turn);
 }
 
 void lock_init(lock_t *lock)
